@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify
 from datetime import datetime
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # --- CONFIGURAÇÕES DE MAPEAMENTO ---
 def mapear_cor(numero):
@@ -70,3 +70,4 @@ def prever():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
