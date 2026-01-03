@@ -14,53 +14,58 @@ def mapear_cor(numero):
     return "DESCONHECIDO"
 
 def analisar_proxima_jogada(historico):
-    # ATUALIZADO PARA 100 RODADAS
+    # EXIGE 100 RODADAS PARA PRECISÃO MÁXIMA
     if len(historico) < 100:
         return {
             "sugestao": "AGUARDANDO DADOS", 
             "confianca": "0%", 
-            "motivo": f"Coletando histórico longo... ({len(historico)}/100)"
+            "motivo": f"Alimentando base de dados... ({len(historico)}/100)"
         }
 
     numeros = [h['numero'] for h in historico]
     cores = [mapear_cor(n) for n in numeros]
-    ultimas = cores[-6:] # Analisa as últimas 6 para padrões curtos
-    agora = datetime.now()
+    ultimas = cores[-6:] 
     
-    # ESTRATÉGIA 1: Quebra de Sequência (Gale)
+    # --- ESTRATÉGIAS DE ANÁLISE ---
+    
+    # 1. Quebra de Sequência (Gale)
     if ultimas.count("VERMELHO") >= 4:
-        sugestao, confianca, motivo = "PRETO", "Alta", "Sequência longa de Vermelho (Quebra)"
+        sugestao, motivo = "PRETO", "Sequência de Vermelho (Estratégia de Quebra)"
     elif ultimas.count("PRETO") >= 4:
-        sugestao, confianca, motivo = "VERMELHO", "Alta", "Sequência longa de Preto (Quebra)"
+        sugestao, motivo = "VERMELHO", "Sequência de Preto (Estratégia de Quebra)"
     
-    # ESTRATÉGIA 2: Alerta de Branco (Baseado em 100 rodadas)
-    elif "BRANCO" not in cores[-40:]:
-        sugestao, confianca, motivo = "BRANCO", "Estratégica", "Mais de 40 rodadas sem Branco"
-    
-    # ESTRATÉGIA 3: Padrão Alternado (Xadrez)
+    # 2. Padrão Xadrez (Alternado)
     elif ultimas[-4:] == ["VERMELHO", "PRETO", "VERMELHO", "PRETO"]:
-        sugestao, confianca, motivo = "PRETO", "Média", "Padrão Xadrez detectado"
+        sugestao, motivo = "PRETO", "Padrão Xadrez detectado"
+    elif ultimas[-4:] == ["PRETO", "VERMELHO", "PRETO", "VERMELHO"]:
+        sugestao, motivo = "VERMELHO", "Padrão Xadrez detectado"
+        
+    # 3. Alerta de Branco (Frequência em 100 rodadas)
+    elif "BRANCO" not in cores[-45:]:
+        sugestao, motivo = "BRANCO", "Filtro de 45 rodadas sem Branco"
     
     else:
-        sugestao, confianca, motivo = "AGUARDAR", "Baixa", "Sem padrão claro nas 100 rodadas"
+        sugestao, motivo = "AGUARDAR", "Aguardando confirmação de padrão lucrativo"
 
     return {
         "sugestao": sugestao,
-        "confianca": confianca,
+        "confianca": "Alta" if sugestao != "AGUARDAR" else "Nula",
         "motivo": motivo,
-        "horario": agora.strftime("%H:%M:%S")
+        "horario": datetime.now().strftime("%H:%M:%S")
     }
 
 @app.route('/')
 def home():
-    return "API do Bot Double Online (Modo 100 Rodadas)"
+    return "API Bot Double 100 Rodadas - Online"
 
 @app.route('/prever', methods=['POST'])
 def prever():
     data = request.get_json()
     if not data or 'historico' not in data:
-        return jsonify({"erro": "JSON inválido"}), 400
-    return jsonify(analisar_proxima_jogada(data['historico']))
+        return jsonify({"erro": "Dados insuficientes"}), 400
+    
+    resultado = analisar_proxima_jogada(data['historico'])
+    return jsonify(resultado)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
