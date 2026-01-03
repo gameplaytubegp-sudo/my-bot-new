@@ -16,25 +16,30 @@ def mapear_cor(numero):
 
 # --- LÓGICA DE ANÁLISE ---
 def analisar_proxima_jogada(historico):
-    if len(historico) < 3:
-        return {"sugestao": "AGUARDAR", "confianca": "Nula", "motivo": "Poucos dados"}
+    # ALTERAÇÃO: Agora verifica se tem pelo menos 15 rodadas
+    if len(historico) < 15:
+        return {
+            "sugestao": "AGUARDANDO DADOS", 
+            "confianca": "0%", 
+            "motivo": f"Coletando histórico necessário... ({len(historico)}/15)"
+        }
 
     # Extrai números e cores
     numeros = [h['numero'] for h in historico]
     cores = [mapear_cor(n) for n in numeros]
     
-    ultimas = cores[-5:] # Analisa as últimas 5 saídas
+    ultimas = cores[-5:] # Analisa as últimas 5 saídas para decidir a jogada
     agora = datetime.now()
     
-    # Exemplo de Padrão: Quebra de Sequência (Gale)
+    # Exemplo de Padrão: Quebra de Sequência
     if ultimas.count("VERMELHO") >= 3:
         sugestao = "PRETO"
         confianca = "Alta"
-        motivo = "Sequência de Vermelho detectada"
+        motivo = "Sequência de Vermelho detectada (Estratégia de Quebra)"
     elif ultimas.count("PRETO") >= 3:
         sugestao = "VERMELHO"
         confianca = "Alta"
-        motivo = "Sequência de Preto detectada"
+        motivo = "Sequência de Preto detectada (Estratégia de Quebra)"
     # Exemplo de Padrão: Alerta de Branco por tempo (minuto 0 ou 5)
     elif agora.minute % 5 == 0 and "BRANCO" not in cores[-10:]:
         sugestao = "BRANCO"
@@ -43,7 +48,7 @@ def analisar_proxima_jogada(historico):
     else:
         sugestao = "AGUARDAR"
         confianca = "Baixa"
-        motivo = "Sem padrão claro no momento"
+        motivo = "Aguardando confirmação de padrão nas últimas 15 rodadas"
 
     return {
         "sugestao": sugestao,
@@ -63,6 +68,7 @@ def prever():
     if not data or 'historico' not in data:
         return jsonify({"erro": "Envie o historico no formato JSON"}), 400
     
+    # Chama a função que agora exige 15 rodadas
     resultado = analisar_proxima_jogada(data['historico'])
     return jsonify(resultado)
 
@@ -70,4 +76,3 @@ def prever():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
