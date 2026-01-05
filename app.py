@@ -1,8 +1,17 @@
 import os
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from datetime import datetime
 
 app = Flask(__name__)
+CORS(app) # Permite que o seu site (index.html) acesse os dados
+
+# Cache para o site ler o último sinal gerado
+ultimo_sinal_cache = {
+    "sugestao": "AGUARDANDO",
+    "confianca": "0%",
+    "motivo": "Iniciando sistema..."
+}
 
 def mapear_cor(numero):
     if numero == 0 or numero == 15:
@@ -14,58 +23,52 @@ def mapear_cor(numero):
     return "DESCONHECIDO"
 
 def analisar_proxima_jogada(historico):
-    # EXIGE 100 RODADAS PARA PRECISÃO MÁXIMA
     if len(historico) < 100:
         return {
             "sugestao": "AGUARDANDO DADOS", 
             "confianca": "0%", 
-            "motivo": f"Alimentando base de dados... ({len(historico)}/100)"
+            "motivo": f"Coletando histórico... ({len(historico)}/100)"
         }
 
     numeros = [h['numero'] for h in historico]
     cores = [mapear_cor(n) for n in numeros]
-    ultimas = cores[-6:] 
+    ultimas = cores[-6:]
     
-    # --- ESTRATÉGIAS DE ANÁLISE ---
-    
-    # 1. Quebra de Sequência (Gale)
+    # Estratégia
     if ultimas.count("VERMELHO") >= 4:
-        sugestao, motivo = "PRETO", "Sequência de Vermelho (Estratégia de Quebra)"
+        sugestao, motivo = "PRETO", "Quebra de Sequência Vermelha"
     elif ultimas.count("PRETO") >= 4:
-        sugestao, motivo = "VERMELHO", "Sequência de Preto (Estratégia de Quebra)"
-    
-    # 2. Padrão Xadrez (Alternado)
-    elif ultimas[-4:] == ["VERMELHO", "PRETO", "VERMELHO", "PRETO"]:
-        sugestao, motivo = "PRETO", "Padrão Xadrez detectado"
-    elif ultimas[-4:] == ["PRETO", "VERMELHO", "PRETO", "VERMELHO"]:
-        sugestao, motivo = "VERMELHO", "Padrão Xadrez detectado"
-        
-    # 3. Alerta de Branco (Frequência em 100 rodadas)
+        sugestao, motivo = "VERMELHO", "Quebra de Sequência Preta"
     elif "BRANCO" not in cores[-45:]:
-        sugestao, motivo = "BRANCO", "Filtro de 45 rodadas sem Branco"
-    
+        sugestao, motivo = "BRANCO", "Alerta de Branco (45+ rodadas)"
     else:
-        sugestao, motivo = "AGUARDAR", "Aguardando confirmação de padrão lucrativo"
+        return {"sugestao": "AGUARDAR", "confianca": "10%", "motivo": "Aguardando padrão claro"}
 
     return {
         "sugestao": sugestao,
-        "confianca": "Alta" if sugestao != "AGUARDAR" else "Nula",
-        "motivo": motivo,
-        "horario": datetime.now().strftime("%H:%M:%S")
+        "confianca": "90%",
+        "motivo": motivo
     }
 
 @app.route('/')
 def home():
-    return "API Bot Double 100 Rodadas - Online"
+    return "API do Bot Double Online"
 
 @app.route('/prever', methods=['POST'])
 def prever():
+    global ultimo_sinal_cache
     data = request.get_json()
     if not data or 'historico' not in data:
-        return jsonify({"erro": "Dados insuficientes"}), 400
+        return jsonify({"erro": "Dados inválidos"}), 400
     
     resultado = analisar_proxima_jogada(data['historico'])
+    ultimo_sinal_cache = resultado # Salva o sinal para o site ler
     return jsonify(resultado)
+
+@app.route('/prever/ultimo_sinal', methods=['GET'])
+def buscar_ultimo():
+    global ultimo_sinal_cache
+    return jsonify(ultimo_sinal_cache)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
